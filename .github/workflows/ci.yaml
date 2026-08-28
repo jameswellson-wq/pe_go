@@ -20,19 +20,42 @@ jobs:
           cache: true
 
       - name: Download dependencies
-        run: go mod download
+        run: |
+          go mod download 2>&1 | tee -a build.log
+          echo "--- mod download exit code: $?" >> build.log
 
       - name: Build Windows exe
         run: |
+          echo "===== BUILD START: $(date) =====" >> build.log
+          echo "Go version: $(go version)"       >> build.log
+          echo "GOOS=windows GOARCH=amd64"       >> build.log
+          echo ""                                >> build.log
+
           GOOS=windows GOARCH=amd64 \
           go build -v \
             -ldflags="-s -w" \
             -o pedumper.exe \
-            ./cmd/
+            ./cmd/ 2>&1 | tee -a build.log
 
-      - name: Upload artifact
+          echo "" >> build.log
+          echo "===== BUILD END: $(date) =====" >> build.log
+          echo "Exit code: ${PIPESTATUS[0]}"    >> build.log
+
+      - name: Show log
+        if: always()
+        run: cat build.log
+
+      - name: Upload exe
         uses: actions/upload-artifact@v4
         with:
           name: pedumper-windows-amd64
           path: pedumper.exe
+          retention-days: 30
+
+      - name: Upload build log
+        if: always()      # 即使编译失败也上传日志
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
           retention-days: 30
