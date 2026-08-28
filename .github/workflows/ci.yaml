@@ -1,4 +1,4 @@
-name: Build pedumper (Windows exe)
+name: Build pedumper (All Platforms)
 
 on:
   push:
@@ -24,36 +24,66 @@ jobs:
           go mod download 2>&1 | tee -a build.log
           echo "--- mod download exit code: $?" >> build.log
 
-      - name: Build Windows exe
+      - name: Build all platforms
         run: |
-          echo "===== BUILD START: $(date) =====" >> build.log
-          echo "Go version: $(go version)"       >> build.log
-          echo "GOOS=windows GOARCH=amd64"       >> build.log
-          echo ""                                >> build.log
+          echo "===== BUILD START: $(date -u) =====" >> build.log
+          echo "Go version: $(go version)"           >> build.log
+          echo ""                                    >> build.log
 
-          GOOS=windows GOARCH=amd64 \
-          go build -v \
-            -ldflags="-s -w" \
-            -o pedumper.exe \
-            ./cmd/ 2>&1 | tee -a build.log
+          mkdir -p dist
 
-          echo "" >> build.log
-          echo "===== BUILD END: $(date) =====" >> build.log
-          echo "Exit code: ${PIPESTATUS[0]}"    >> build.log
+          targets=(
+            "windows amd64 .exe"
+            "windows arm64 .exe"
+            "linux   amd64 ''"
+            "linux   arm64 ''"
+            "linux   386   ''"
+            "darwin  amd64 ''"
+            "darwin  arm64 ''"
+          )
+
+          for target in "${targets[@]}"; do
+            read -r OS ARCH EXT <<< "$target"
+            EXT="${EXT//\'}"
+
+            OUTPUT="dist/pedumper-${OS}-${ARCH}${EXT}"
+
+            echo "----- [$(date -u +%T)] ${OS}/${ARCH} -----" >> build.log
+
+            GOOS=$OS GOARCH=$ARCH \
+            go build -v \
+              -ldflags="-s -w" \
+              -o "$OUTPUT" \
+              ./cmd/ 2>&1 | tee -a build.log
+
+            CODE=${PIPESTATUS[0]}
+            if [ $CODE -eq 0 ]; then
+              SIZE=$(ls -lh "$OUTPUT" | awk '{print $5}')
+              echo "✅ OK  size=${SIZE}  output=${OUTPUT}" >> build.log
+            else
+              echo "❌ FAILED  exit=${CODE}" >> build.log
+            fi
+            echo "" >> build.log
+          done
+
+          echo "===== BUILD END: $(date -u) =====" >> build.log
+          echo ""                                  >> build.log
+          echo "--- dist/ contents ---"            >> build.log
+          ls -lh dist/                             >> build.log
 
       - name: Show log
         if: always()
         run: cat build.log
 
-      - name: Upload exe
+      - name: Upload binaries
         uses: actions/upload-artifact@v4
         with:
-          name: pedumper-windows-amd64
-          path: pedumper.exe
+          name: pedumper-all-platforms
+          path: dist/
           retention-days: 30
 
       - name: Upload build log
-        if: always()      # 即使编译失败也上传日志
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: build-log
