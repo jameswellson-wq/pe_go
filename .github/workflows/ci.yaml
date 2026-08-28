@@ -28,16 +28,20 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
-      # ✅ 只跑编译，跳过 staticcheck linting
+      # 先列出目录结构，方便排查问题
+      - name: Show repo structure
+        run: |
+          find . -type f -name "*.go" | grep -v "_test.go" | head -30
+
+      # ✅ 修正路径：用 ./cmd/ 而不是 ./cmd/pedumper/
       - name: Build (Linux / macOS)
         if: runner.os != 'Windows'
-        run: go build -v -ldflags="-s -w" -o pedumper ./cmd/pedumper/
+        run: go build -v -ldflags="-s -w" -o pedumper ./cmd/
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
-        run: go build -v -ldflags="-s -w" -o pedumper.exe ./cmd/pedumper/
+        run: go build -v -ldflags="-s -w" -o pedumper.exe ./cmd/
 
-      # ✅ 跑单元测试，但不跑 lint
       - name: Test
         run: go test -v -count=1 ./...
 
